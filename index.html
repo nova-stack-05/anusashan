@@ -252,6 +252,7 @@ if('serviceWorker' in navigator){
 const STORAGE_KEY='kartavya-main-data';
 const TOPUP=5000,DEFAULT_WALLET=5000,DEFAULT_REWARD=50,DEFAULT_PENALTY=200,DEFAULT_DURATION=30;
 const DISTRACTION_PENALTY=10;
+const STAR_DAILY_PENALTY=200;
 const STAR_HOUR_PENALTY=30,STAR_MINUTES_PER_HOUR_MS=30*60*1000,STAR_START_HOUR=8,STAR_END_HOUR=22;
 const COMPULSORY_START_MS=10*60*1000,COMPULSORY_AFTER_DAYS=3;
 const MACRODROID_WEBHOOK_URL='https://trigger.macrodroid.com/9d8de64f-05db-49f9-9470-18e7f06404e1/kartavya_timer';
@@ -273,6 +274,9 @@ const state={
   editStoreTaskDurationText:'30 min',
   starHourWorkMs:{},
   starHourPenaltyApplied:{},
+  starDailyWorkMs:{},
+  starDailyPenaltyApplied:{},
+  starDailyReminderShown:{},
   lastStarTickAt:null,
   soundEnabled:true,
   vibrationEnabled:true
@@ -333,7 +337,7 @@ function storedWorkedMs(item){return Math.max(0,Number(item&&item.totalWorkedMs)
 function historyWorkedMsForStoreItem(item){
   if(!item)return 0;
   return state.history.reduce((sum,h)=>{
-    if(!h||h.isStarHourPenalty||h.isDistractionPenalty)return sum;
+    if(!h||h.isStarHourPenalty||h.isDistractionPenalty||h.isStarDailyPenalty)return sum;
     const sameSource=h.sourceType==='store'&&h.sourceId===item.id;
     const sameName=cleanTaskName(h.taskName)===cleanTaskName(item.taskName);
     if(!sameSource&&!sameName)return sum;
@@ -380,6 +384,131 @@ function countsAsMainTaskToday(task){
   if(isCompulsoryActiveTask(task))return true;
   return false;
 }
+
+/* Starred task daily full-duration rule */
+function starDailyKey(dateKeyValue,itemId){
+  return dateKeyValue+'__'+String(itemId);
+}
+function getStarDailyWorkedMsForItem(item,dateKeyValue=todayKey()){
+  if(!item)return 0;
+  return Math.max(0,Number(state.starDailyWorkMs[starDailyKey(dateKeyValue,item.id)])||0);
+}
+function getStarDailyRequiredMsForItem(item){
+  return Math.max(1,Number(item&&item.durationMinutes)||DEFAULT_DURATION)*60000;
+}
+function isStarDailyComplete(item,dateKeyValue=todayKey()){
+  return getStarDailyWorkedMsForItem(item,dateKeyValue)>=getStarDailyRequiredMsForItem(item);
+}
+function itemExistedOnDate(item,dateKeyValue){
+  if(!item||!item.createdAt)return false;
+  const createdMs=new Date(item.createdAt).getTime();
+  if(!Number.isFinite(createdMs))return false;
+  const parts=dateKeyValue.split('-').map(Number);
+  const dayEnd=new Date(parts[0],parts[1]-1,parts[2]+1,0,0,0,0).getTime();
+  return createdMs<dayEnd;
+}
+function addStarDailyWorkSlice(task,startMs,endMs){
+  if(!task||!isStarredTaskName(task.taskName))return false;
+  if(task.sourceType!=='store'||!task.sourceId)return false;
+
+  let changed=false;
+  let cursor=startMs;
+
+  while(cursor<endMs){
+    const d=new Date(cursor);
+    const nextMidnight=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1,0,0,0,0);
+    const sliceEnd=Math.min(endMs,nextMidnight.getTime());
+    const key=starDailyKey(todayKey(d),task.sourceId);
+
+    state.starDailyWorkMs[key]=(Number(state.starDailyWorkMs[key])||0)+(sliceEnd-cursor);
+    changed=true;
+
+    cursor=sliceEnd;
+  }
+
+  return changed;
+}
+function ensureStarDailyPenalties(){
+  const now=new Date();
+  const yesterday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-1,0,0,0,0);
+  const penaltyDate=todayKey(yesterday);
+  let changed=false;
+
+  state.taskStore.forEach(item=>{
+    if(!isStarredTaskName(item.taskName))return;
+    if(!itemExistedOnDate(item,penaltyDate))return;
+
+    const appliedKey=starDailyKey(penaltyDate,item.id);
+    if(state.starDailyPenaltyApplied[appliedKey])return;
+
+    const worked=getStarDailyWorkedMsForItem(item,penaltyDate);
+    const required=getStarDailyRequiredMsForItem(item);
+
+    if(worked<required){
+      state.wallet=Math.max(0,state.wallet-STAR_DAILY_PENALTY);
+
+      state.history.unshift({
+        id:Date.now()+Math.floor(Math.random()*1000),
+        taskName:'Daily starred task incomplete: '+item.taskName,
+        reward:0,
+        penalty:STAR_DAILY_PENALTY,
+        result:'fail',
+        completedAt:new Date().toISOString(),
+        isStarDailyPenalty:true,
+        penaltyDate:penaltyDate,
+        workedMs:worked,
+        requiredMs:required
+      });
+    }
+
+    state.starDailyPenaltyApplied[appliedKey]=true;
+    changed=true;
+  });
+
+  return changed;
+}
+function showStarDailyReminders(){
+  const now=new Date();
+
+  if(now.getHours()<20)return;
+
+  const today=todayKey(now);
+  const reminders=[];
+
+  state.taskStore.forEach(item=>{
+    if(!isStarredTaskName(item.taskName))return;
+
+    const reminderKey=starDailyKey(today,item.id);
+    if(state.starDailyReminderShown[reminderKey])return;
+
+    const worked=getStarDailyWorkedMsForItem(item,today);
+    const required=getStarDailyRequiredMsForItem(item);
+
+    if(worked<required){
+      reminders.push(
+        item.taskName+
+        ' — Done: '+formatMs(worked)+
+        ' / Required: '+formatMs(required)+
+        ' | Complete it or face ₹'+STAR_DAILY_PENALTY+' penalty at midnight.'
+      );
+
+      state.starDailyReminderShown[reminderKey]=true;
+    }
+  });
+
+  if(reminders.length){
+    save();
+    alert('Starred Task Reminder:\n\n'+reminders.join('\n\n'));
+  }
+}
+function starDailyMetaText(item){
+  if(!item||!isStarredTaskName(item.taskName))return '';
+  const worked=getStarDailyWorkedMsForItem(item);
+  const required=getStarDailyRequiredMsForItem(item);
+  const done=worked>=required;
+  return ' • Today '+formatMs(worked)+'/'+formatMs(required)+(done?' ✅':' ⚠️');
+}
+
 function normalizeQueueOrdering(){
   const starred=[],normal=[];
   state.tasks.forEach(i=>(isStarredTaskName(i.taskName)?starred:normal).push(i));
@@ -469,13 +598,16 @@ function accountStarredWorkAndPenalties(){
       const allowedDuration=Math.min(tickEnd-tickStart,remainingAtTickStart);
       const allowedEnd=tickStart+allowedDuration;
       if(allowedEnd>tickStart){
-        changed=addStarWorkSlice(tickStart,allowedEnd)||changed
+        changed=addStarWorkSlice(tickStart,allowedEnd)||changed;
+        changed=addStarDailyWorkSlice(a,tickStart,allowedEnd)||changed;
       }
     }
   }
 
   state.lastStarTickAt=now;
   changed=ensureStarHourPenalties()||changed;
+  changed=ensureStarDailyPenalties()||changed;
+  showStarDailyReminders();
   if(changed)save()
 }
 function currentHourStarSatisfied(){const key=hourKey(new Date());return(state.starHourWorkMs[key]||0)>=STAR_MINUTES_PER_HOUR_MS}
@@ -548,6 +680,9 @@ function load(){
   if(typeof state.editStoreTaskDurationText!=='string')state.editStoreTaskDurationText='30 min';
   if(typeof state.starHourWorkMs!=='object'||!state.starHourWorkMs)state.starHourWorkMs={};
   if(typeof state.starHourPenaltyApplied!=='object'||!state.starHourPenaltyApplied)state.starHourPenaltyApplied={};
+  if(typeof state.starDailyWorkMs!=='object'||!state.starDailyWorkMs)state.starDailyWorkMs={};
+  if(typeof state.starDailyPenaltyApplied!=='object'||!state.starDailyPenaltyApplied)state.starDailyPenaltyApplied={};
+  if(typeof state.starDailyReminderShown!=='object'||!state.starDailyReminderShown)state.starDailyReminderShown={};
   if(typeof state.lastStarTickAt!=='number')state.lastStarTickAt=Date.now();
   const storeNormalized=normalizeDurationInput(state.storeDurationText||'30 min');
   state.storeDurationText=storeNormalized?storeNormalized.text:'30 min';
@@ -781,6 +916,9 @@ function resetScore(){
   state.history=[];
   if(typeof state.starHourWorkMs!=='object'||!state.starHourWorkMs)state.starHourWorkMs={};
   if(typeof state.starHourPenaltyApplied!=='object'||!state.starHourPenaltyApplied)state.starHourPenaltyApplied={};
+  if(typeof state.starDailyWorkMs!=='object'||!state.starDailyWorkMs)state.starDailyWorkMs={};
+  if(typeof state.starDailyPenaltyApplied!=='object'||!state.starDailyPenaltyApplied)state.starDailyPenaltyApplied={};
+  if(typeof state.starDailyReminderShown!=='object'||!state.starDailyReminderShown)state.starDailyReminderShown={};
   markPastStarHoursAsHandled();
   state.lastStarTickAt=Date.now();
   save();
@@ -794,7 +932,7 @@ function disclaimerHtml(){
 }
 function instructionsHtml(){
   if(!state.showInstructions)return '';
-  return '<div class="card instructions-card"><div class="section-head"><span class="section-dot"></span><div class="sub">How to Use Kartavya</div></div><div class="instructions-body"><p><b>1. Add tasks in Task Store</b><br>Write the task name, enter duration like <b>30 min</b>, <b>1 hr</b>, or <b>1 hr 30 min</b>, and press <b>Add Task</b>.</p><p><b>2. Use * for Main Tasks</b><br>If a task is very important, start its name with <b>*</b>. Starred tasks help complete the rule of 30 minutes main work per hour.</p><p><b>3. Queue a task to start</b><br>Press <b>Queue</b>. The timer starts only when the task becomes active/current.</p><p><b>4. Progress bar meaning</b><br><b>Green</b> means time already worked. <b>Red</b> means time still pending. Tap the bar to <b>Pause</b> or <b>Resume</b>.</p><p><b>5. Total Hrs</b><br><b>Total Hrs</b> shows actual active working time spent on that task across sessions. It does not count leftover time or merely the date of creation.</p><p><b>6. Oldest task cycling rule</b><br>Every stored task keeps cycling until deleted. If it is not attended for 72 hours, it comes to the top with underline and red check mark. Work on it for at least <b>10 minutes</b>; then it becomes ordinary again. After another 72 hours without attendance, it will again become priority.</p><p><b>7. Main Task Today dots</b><br>The dots cover <b>8 AM to 10 PM</b>. Green means 30 minutes or more main-task work. Red means the hour ended without 30 minutes. The current dot shows live minutes. Tap any dot to see counted minutes.</p><p><b>8. Hourly penalty safety</b><br>The app checks today’s hours only. Reset Score keeps work minutes safe and prevents old hours from being charged again.</p><p><b>9. Distraction button</b><br>If you get distracted, press <b>Distraction = -₹10</b>. It deducts ₹10 from Wallet and adds ₹10 to Total Penalty for self-discipline.</p><p><b>10. Shifting tasks</b><br>Drag the <b>⋮⋮</b> handle to shift tasks. The oldest compulsory task will remain on top until it has been attended for 10 minutes.</p><p><b>11. Money note</b><br>Reward, penalty and wallet are only motivational values. No real money is paid or deducted.</p></div></div>'
+  return '<div class="card instructions-card"><div class="section-head"><span class="section-dot"></span><div class="sub">How to Use Kartavya</div></div><div class="instructions-body"><p><b>1. Add tasks in Task Store</b><br>Write the task name, enter duration like <b>30 min</b>, <b>1 hr</b>, or <b>1 hr 30 min</b>, and press <b>Add Task</b>.</p><p><b>2. Use * for Main Tasks</b><br>If a task is very important, start its name with <b>*</b>. Starred tasks help complete the rule of 30 minutes main work per hour.</p><p><b>3. Starred Daily Rule</b><br>Every <b>*starred task</b> must be completed daily for its full prescribed duration. Its total time keeps accumulating and showing. If the full duration is not completed by midnight, ₹200 penalty will be applied automatically for that starred task.</p><p><b>4. Queue a task to start</b><br>Press <b>Queue</b>. The timer starts only when the task becomes active/current.</p><p><b>5. Progress bar meaning</b><br><b>Green</b> means time already worked. <b>Red</b> means time still pending. Tap the bar to <b>Pause</b> or <b>Resume</b>.</p><p><b>6. Total Hrs</b><br><b>Total Hrs</b> shows actual active working time spent on that task across sessions. It does not count leftover time or merely the date of creation.</p><p><b>7. Oldest task cycling rule</b><br>Every stored task keeps cycling until deleted. If it is not attended for 72 hours, it comes to the top with underline and red check mark. Work on it for at least <b>10 minutes</b>; then it becomes ordinary again. After another 72 hours without attendance, it will again become priority.</p><p><b>8. Main Task Today dots</b><br>The dots cover <b>8 AM to 10 PM</b>. Green means 30 minutes or more main-task work. Red means the hour ended without 30 minutes. The current dot shows live minutes. Tap any dot to see counted minutes.</p><p><b>9. Hourly penalty safety</b><br>The app checks today’s hours only. Reset Score keeps work minutes safe and prevents old hours from being charged again.</p><p><b>10. Distraction button</b><br>If you get distracted, press <b>Distraction = -₹10</b>. It deducts ₹10 from Wallet and adds ₹10 to Total Penalty for self-discipline.</p><p><b>11. Shifting tasks</b><br>Drag the <b>⋮⋮</b> handle to shift tasks. The oldest compulsory task will remain on top until it has been attended for 10 minutes.</p><p><b>12. Money note</b><br>Reward, penalty and wallet are only motivational values. No real money is paid or deducted.</p></div></div>'
 }
 function bindStoreDurationInput(){
   const input=document.getElementById('storeDurationInput');if(!input)return;
@@ -969,7 +1107,7 @@ function render(){
     if(state.editStoreTaskId===item.id){
       return '<div class="draggable-item" data-list="store" data-id="'+item.id+'"><div class="paired-grid" style="margin-top:0"><div class="paired-box"><label>Task Name</label><input id="editStoreTaskName_'+item.id+'" value="'+escapeHtml(state.editStoreTaskName||item.taskName)+'"></div><div class="paired-box"><label>Duration</label><input id="editStoreTaskDuration_'+item.id+'" class="duration-input" value="'+escapeHtml(state.editStoreTaskDurationText||formatDuration(item.durationMinutes))+'"></div></div><div class="row" style="margin-top:8px"><button class="btn-success mini" style="flex:1" data-save-store-edit="'+item.id+'">Save</button><button class="btn-outline mini" data-cancel-store-edit="1">Cancel</button></div></div>'
     }
-    return '<div class="draggable-item" data-list="store" data-id="'+item.id+'"><div class="store-row"><div><div class="item-name '+(isStar?'star-item-name ':'')+'" data-edit-store="'+item.id+'" style="cursor:pointer"><span class="status-dot '+dotClass+'"></span>'+label+'<span class="'+(isRequired?'oldest-required':'')+'">'+escapeHtml(item.taskName)+'</span>'+(date?' <span class="item-date">('+escapeHtml(date)+')</span>':'')+(isRequired?' <span class="required-check">✓</span>':'')+'</div><div class="item-meta">'+formatDuration(item.durationMinutes)+' • Total Hrs '+formatMs(storeItemCumulativeWorkedMs(item))+'</div></div><button class="drag-handle" draggable="true" data-drag-handle="1" data-list="store" data-id="'+item.id+'">⋮⋮</button><button class="btn-queue mini" data-send-queue="'+item.id+'">Queue</button><button class="btn-delete mini" data-store-delete="'+item.id+'">Delete</button></div></div>'
+    return '<div class="draggable-item" data-list="store" data-id="'+item.id+'"><div class="store-row"><div><div class="item-name '+(isStar?'star-item-name ':'')+'" data-edit-store="'+item.id+'" style="cursor:pointer"><span class="status-dot '+dotClass+'"></span>'+label+'<span class="'+(isRequired?'oldest-required':'')+'">'+escapeHtml(item.taskName)+'</span>'+(date?' <span class="item-date">('+escapeHtml(date)+')</span>':'')+(isRequired?' <span class="required-check">✓</span>':'')+'</div><div class="item-meta">'+formatDuration(item.durationMinutes)+' • Total Hrs '+formatMs(storeItemCumulativeWorkedMs(item))+starDailyMetaText(item)+'</div></div><button class="drag-handle" draggable="true" data-drag-handle="1" data-list="store" data-id="'+item.id+'">⋮⋮</button><button class="btn-queue mini" data-send-queue="'+item.id+'">Queue</button><button class="btn-delete mini" data-store-delete="'+item.id+'">Delete</button></div></div>'
   }).join(''):'<div class="empty-state">No task stored yet.</div>';
 
   app.innerHTML=`
