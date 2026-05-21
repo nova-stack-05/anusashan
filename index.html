@@ -371,11 +371,27 @@ function effectiveCycleWorkedMs(item){
   return Math.max(0,Number(item&&item.cycleWorkedMs)||0)+active
 }
 function isAttendedEnough(item){return effectiveCycleWorkedMs(item)>=COMPULSORY_START_MS}
-function isCompulsoryStoreItem(item){return !!(item&&!isAttendedEnough(item)&&isOldEnoughForCompulsory(item))}
+function isCompulsoryStoreItem(item){
+  if(!item)return false;
+  if(isStarredTaskName(item.taskName))return false;
+  return !!(!isAttendedEnough(item)&&isOldEnoughForCompulsory(item));
+}
 function oldestCompulsoryStoreItem(){return state.taskStore.filter(isCompulsoryStoreItem).sort((a,b)=>taskLastBaseMs(a)-taskLastBaseMs(b))[0]||null}
-function isCompulsoryActiveTask(task){
+function queuedTaskForStoreItem(storeId){
+  return state.tasks.find(t=>t.sourceType==='store'&&t.sourceId===storeId)||null;
+}
+function isQueuedOldCompulsoryTask(task){
   const old=oldestCompulsoryStoreItem();
-  return !!(task&&old&&task.sourceType==='store'&&task.sourceId===old.id&&taskWorkedMs(task)<COMPULSORY_START_MS)
+  return !!(
+    task &&
+    old &&
+    task.sourceType==='store' &&
+    task.sourceId===old.id &&
+    taskWorkedMs(task)<COMPULSORY_START_MS
+  );
+}
+function isCompulsoryActiveTask(task){
+  return isQueuedOldCompulsoryTask(task);
 }
 function countsAsMainTaskToday(task){
   if(!task)return false;
@@ -510,9 +526,13 @@ function starDailyMetaText(item){
 }
 
 function normalizeQueueOrdering(){
-  const starred=[],normal=[];
-  state.tasks.forEach(i=>(isStarredTaskName(i.taskName)?starred:normal).push(i));
-  state.tasks=[...starred,...normal]
+  const required=[],starred=[],normal=[];
+  state.tasks.forEach(i=>{
+    if(isQueuedOldCompulsoryTask(i))required.push(i);
+    else if(isStarredTaskName(i.taskName))starred.push(i);
+    else normal.push(i);
+  });
+  state.tasks=[...required,...starred,...normal]
 }
 function normalizeTaskStoreOrdering(){
   const required=[],starred=[],open=[],done=[];
@@ -615,7 +635,7 @@ function currentTaskTextClass(a){if(!a||!isStarredTaskName(a.taskName))return'';
 function currentTaskHtml(a){
   if(!a)return'No active task';
   const dot=a.isPaused?'paused-cycle-dot':'current-cycle-dot';
-  const compulsory=isCompulsoryActiveTask(a);
+  const compulsory=isCompulsoryActiveTask(a)||isQueuedOldCompulsoryTask(a);
   return'<span class="'+dot+'"></span><span class="'+currentTaskTextClass(a)+(compulsory?' oldest-required':'')+'">'+escapeHtml(a.taskName)+'</span>'+(compulsory?'<span class="required-check">✓</span>':'')
 }
 function focusDotsHtml(){
@@ -803,13 +823,40 @@ function addTaskForFuture(){
 }
 function sendStoreTaskToQueue(id){
   const oldest=oldestCompulsoryStoreItem();
-  if(oldest&&oldest.id!==id){alert('Please attempt the oldest task first for at least ten minutes.');return}
-  const item=state.taskStore.find(x=>x.id===id);if(!item)return;
+
+  if(oldest){
+    const alreadyQueued=queuedTaskForStoreItem(oldest.id);
+
+    if(oldest.id!==id){
+      if(alreadyQueued){
+        alert('The oldest compulsory task is already in Queued Task. Please complete it first for at least ten minutes.');
+      }else{
+        alert('Please attempt the oldest task first for at least ten minutes.');
+      }
+      return;
+    }
+
+    if(alreadyQueued){
+      alert('This oldest compulsory task is already in Queued Task. Please complete it first for at least ten minutes.');
+      return;
+    }
+  }
+
+  const item=state.taskStore.find(x=>x.id===id);
+  if(!item)return;
+
   const task=buildTask(item.taskName,item.durationMinutes,'store',item.id,item.createdAt);
   task.wasCompulsoryWhenQueued=isCompulsoryStoreItem(item);
+
   insertIntoPriorityList('tasks',task);
+  normalizeQueueOrdering();
+
   if(!state.activeTaskId)state.activeTaskId=task.id;
-  syncActive();save();render();autoSendMacroDroidForActiveTask()
+
+  syncActive();
+  save();
+  render();
+  autoSendMacroDroidForActiveTask();
 }
 function deleteStoreTask(id){
   if(!confirm('Delete this task from Task Store?'))return;
@@ -932,7 +979,7 @@ function disclaimerHtml(){
 }
 function instructionsHtml(){
   if(!state.showInstructions)return '';
-  return '<div class="card instructions-card"><div class="section-head"><span class="section-dot"></span><div class="sub">How to Use Kartavya</div></div><div class="instructions-body"><p><b>1. Add tasks in Task Store</b><br>Write the task name, enter duration like <b>30 min</b>, <b>1 hr</b>, or <b>1 hr 30 min</b>, and press <b>Add Task</b>.</p><p><b>2. Use * for Main Tasks</b><br>If a task is very important, start its name with <b>*</b>. Starred tasks help complete the rule of 30 minutes main work per hour.</p><p><b>3. Starred Daily Rule</b><br>Every <b>*starred task</b> must be completed daily for its full prescribed duration. Its total time keeps accumulating and showing. If the full duration is not completed by midnight, ₹200 penalty will be applied automatically for that starred task.</p><p><b>4. Queue a task to start</b><br>Press <b>Queue</b>. The timer starts only when the task becomes active/current.</p><p><b>5. Progress bar meaning</b><br><b>Green</b> means time already worked. <b>Red</b> means time still pending. Tap the bar to <b>Pause</b> or <b>Resume</b>.</p><p><b>6. Total Hrs</b><br><b>Total Hrs</b> shows actual active working time spent on that task across sessions. It does not count leftover time or merely the date of creation.</p><p><b>7. Oldest task cycling rule</b><br>Every stored task keeps cycling until deleted. If it is not attended for 72 hours, it comes to the top with underline and red check mark. Work on it for at least <b>10 minutes</b>; then it becomes ordinary again. After another 72 hours without attendance, it will again become priority.</p><p><b>8. Main Task Today dots</b><br>The dots cover <b>8 AM to 10 PM</b>. Green means 30 minutes or more main-task work. Red means the hour ended without 30 minutes. The current dot shows live minutes. Tap any dot to see counted minutes.</p><p><b>9. Hourly penalty safety</b><br>The app checks today’s hours only. Reset Score keeps work minutes safe and prevents old hours from being charged again.</p><p><b>10. Distraction button</b><br>If you get distracted, press <b>Distraction = -₹10</b>. It deducts ₹10 from Wallet and adds ₹10 to Total Penalty for self-discipline.</p><p><b>11. Shifting tasks</b><br>Drag the <b>⋮⋮</b> handle to shift tasks. The oldest compulsory task will remain on top until it has been attended for 10 minutes.</p><p><b>12. Money note</b><br>Reward, penalty and wallet are only motivational values. No real money is paid or deducted.</p></div></div>'
+  return '<div class="card instructions-card"><div class="section-head"><span class="section-dot"></span><div class="sub">How to Use Kartavya</div></div><div class="instructions-body"><p><b>1. Add tasks in Task Store</b><br>Write the task name, enter duration like <b>30 min</b>, <b>1 hr</b>, or <b>1 hr 30 min</b>, and press <b>Add Task</b>.</p><p><b>2. Use * for Main Tasks</b><br>If a task is very important, start its name with <b>*</b>. Starred tasks help complete the rule of 30 minutes main work per hour.</p><p><b>3. Starred Daily Rule</b><br>Every <b>*starred task</b> must be completed daily for its full prescribed duration. Its total time keeps accumulating and showing. If the full duration is not completed by midnight, ₹200 penalty will be applied automatically for that starred task.</p><p><b>4. Queue a task to start</b><br>Press <b>Queue</b>. The timer starts only when the task becomes active/current.</p><p><b>5. Progress bar meaning</b><br><b>Green</b> means time already worked. <b>Red</b> means time still pending. Tap the bar to <b>Pause</b> or <b>Resume</b>.</p><p><b>6. Total Hrs</b><br><b>Total Hrs</b> shows actual active working time spent on that task across sessions. It does not count leftover time or merely the date of creation.</p><p><b>7. Oldest task cycling rule</b><br>Every ordinary stored task keeps cycling until deleted. Starred tasks are controlled separately by the starred daily rule. If an ordinary stored task is not attended for 72 hours, it comes to the top with underline and red check mark. Work on it for at least <b>10 minutes</b>; then it becomes ordinary again.</p><p><b>8. Main Task Today dots</b><br>The dots cover <b>8 AM to 10 PM</b>. Green means 30 minutes or more main-task work. Red means the hour ended without 30 minutes. The current dot shows live minutes. Tap any dot to see counted minutes.</p><p><b>9. Hourly penalty safety</b><br>The app checks today’s hours only. Reset Score keeps work minutes safe and prevents old hours from being charged again.</p><p><b>10. Distraction button</b><br>If you get distracted, press <b>Distraction = -₹10</b>. It deducts ₹10 from Wallet and adds ₹10 to Total Penalty for self-discipline.</p><p><b>11. Shifting tasks</b><br>Drag the <b>⋮⋮</b> handle to shift tasks. The oldest compulsory task, if already queued, remains above starred tasks until it has been attended for 10 minutes.</p><p><b>12. Money note</b><br>Reward, penalty and wallet are only motivational values. No real money is paid or deducted.</p></div></div>'
 }
 function bindStoreDurationInput(){
   const input=document.getElementById('storeDurationInput');if(!input)return;
@@ -1089,6 +1136,8 @@ function refreshLive(){
 }
 function render(){
   normalizeTaskStoreOrdering();
+  normalizeQueueOrdering();
+
   const app=document.getElementById('app'),a=activeTask(),s=stats(),urgency=urgencyClass();
   const overdue=!!(a&&taskRemainingMs(a)<=0);
   const endText=a?(a.isPaused?'Paused':(overdue?'Duration completed':'Remaining: '+formatMs(taskRemainingMs(a)))):'';
@@ -1098,8 +1147,12 @@ function render(){
   const focus=focusDotsHtml();
 
   const queueHtml=state.tasks.length?state.tasks.map((item,idx)=>{
-    const isActive=item.id===state.activeTaskId,isStar=isStarredTaskName(item.taskName),label=isActive?'▶ ':(isStar?'':(idx+1)+'. '),date=createdDateShort(item.createdAt);
-    return '<div class="draggable-item'+(isActive?' active':'')+'" data-list="queue" data-id="'+item.id+'"><div class="queue-row"><div><div class="item-name '+(isStar?'star-item-name':'')+'">'+label+escapeHtml(item.taskName)+(date?' <span class="item-date">('+escapeHtml(date)+')</span>':'')+'</div><div class="item-meta">'+formatDuration(item.durationMinutes||0)+' • Total Hrs '+formatMs(taskCumulativeWorkedMs(item))+'</div></div><button class="mini mini-copy" data-copy-queue="'+item.id+'">Copy</button><button class="drag-handle" draggable="true" data-drag-handle="1" data-list="queue" data-id="'+item.id+'">⋮⋮</button><button class="btn-delete mini" data-remove="'+item.id+'">Delete</button></div></div>'
+    const isActive=item.id===state.activeTaskId;
+    const isStar=isStarredTaskName(item.taskName);
+    const isOldQueued=isQueuedOldCompulsoryTask(item);
+    const label=isActive?'▶ ':(isStar?'':(idx+1)+'. ');
+    const date=createdDateShort(item.createdAt);
+    return '<div class="draggable-item'+(isActive?' active':'')+'" data-list="queue" data-id="'+item.id+'"><div class="queue-row"><div><div class="item-name '+(isStar?'star-item-name':'')+'">'+label+'<span class="'+(isOldQueued?'oldest-required':'')+'">'+escapeHtml(item.taskName)+'</span>'+(date?' <span class="item-date">('+escapeHtml(date)+')</span>':'')+(isOldQueued?' <span class="required-check">✓</span>':'')+'</div><div class="item-meta">'+formatDuration(item.durationMinutes||0)+' • Total Hrs '+formatMs(taskCumulativeWorkedMs(item))+'</div></div><button class="mini mini-copy" data-copy-queue="'+item.id+'">Copy</button><button class="drag-handle" draggable="true" data-drag-handle="1" data-list="queue" data-id="'+item.id+'">⋮⋮</button><button class="btn-delete mini" data-remove="'+item.id+'">Delete</button></div></div>'
   }).join(''):'<div class="empty-state">No queued task yet.</div>';
 
   const storeHtml=state.taskStore.length?state.taskStore.map((item,idx)=>{
