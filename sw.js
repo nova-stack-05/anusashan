@@ -1,5 +1,21 @@
-const CACHE_NAME='kartavya-ultra-final-v7';
-const ASSETS=['./','./index.html','./manifest.webmanifest','./sw.js','./icon-192.png','./icon-512.png'];
+const CACHE_NAME='kartavya-static-v9';
+const ASSETS=[
+  './',
+  './index.html',
+  './styles.css',
+  './manifest.webmanifest',
+  './sw.js',
+  './icon-192.png',
+  './icon-512.png',
+  './js/01-config-state.js',
+  './js/02-formatting.js',
+  './js/03-task-rules.js',
+  './js/04-integrations.js',
+  './js/05-storage.js',
+  './js/06-task-actions.js',
+  './js/07-view.js',
+  './js/08-events.js'
+];
 
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(ASSETS)));
