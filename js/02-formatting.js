@@ -2,12 +2,14 @@ function sanitizeNumber(value,fallback){const n=Number(value);return Number.isFi
 function escapeHtml(str){return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function save(){
   if(!persistenceEnabled)return;
-  if(localStorage.getItem(STORAGE_KEY)===null){
+  if(hasPersistedData&&localStorage.getItem(STORAGE_KEY)===null){
     persistenceEnabled=false;
+    hasPersistedData=false;
     location.reload();
     return;
   }
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(state))
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+  hasPersistedData=true
 }
 function rupee(n){return '₹'+Number(n||0).toLocaleString('en-IN')}
 function todayKey(d=new Date()){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}

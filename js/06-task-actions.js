@@ -209,8 +209,22 @@ function resetScore(){
 function clearAllData(){
   if(!confirm('Clear all Kartavya data? This permanently deletes tasks, history, wallet balance, and focus records. This cannot be undone.'))return;
   persistenceEnabled=false;
+  hasPersistedData=false;
   localStorage.removeItem(STORAGE_KEY);
-  location.reload()
+  Object.assign(state,{
+    wallet:DEFAULT_WALLET,
+    reward:String(DEFAULT_REWARD),
+    penalty:String(DEFAULT_PENALTY),
+    storeDurationText:'30 min',
+    tasks:[],taskStore:[],history:[],activeTaskId:null,
+    showStoreList:false,showInstructions:false,showDisclaimer:false,
+    editStoreTaskId:null,editStoreTaskName:'',editStoreTaskDurationText:'30 min',
+    starHourWorkMs:{},starHourPenaltyApplied:{},
+    starDailyWorkMs:{},starDailyPenaltyApplied:{},starDailyReminderShown:{},
+    lastStarTickAt:Date.now(),soundEnabled:true,vibrationEnabled:true
+  });
+  clearMacroDroidState();
+  render()
 }
 function toggleInstructions(){state.showInstructions=!state.showInstructions;save();render()}
 function toggleDisclaimer(){state.showDisclaimer=!state.showDisclaimer;save();render()}
