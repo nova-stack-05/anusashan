@@ -1,0 +1,3 @@
+The app already saves task results and penalties, but I can’t see the individual entries anywhere. Add a History panel so I can look back at them, with the newest ones at the top. I should be able to tell a normal task result from a distraction penalty and the hourly or daily starred-task penalties.
+
+Keep it closed when the app first opens. Please use the history that’s already saved and leave the timer, queue, penalty rules, Reset Score, and saved-data format alone. Some old entries might be missing `workedMs` or `completedAt`, so make sure those still show up without breaking the panel.

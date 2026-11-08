@@ -1,0 +1,1 @@
+Could you add a History panel? I want to see the task results and penalties Kartavya already saves, newest ones first. Make it easy to tell the different penalty types apart too. Keep it closed by default, and don’t let older entries with missing fields break it. Please leave the timer, queue, rules, Reset Score, and saved data as they are.

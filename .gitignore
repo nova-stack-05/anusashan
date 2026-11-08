@@ -1,0 +1,27 @@
+# Dependencies and generated package folders
+node_modules/
+vendor/
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+
+# Browser and test-runner output
+.cache/
+playwright-report/
+test-results/
+coverage/
+
+# Build output
+dist/
+build/
+
+# Operating system files
+.DS_Store
+Thumbs.db
