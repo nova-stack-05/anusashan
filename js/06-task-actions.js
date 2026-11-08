@@ -206,5 +206,11 @@ function resetScore(){
   save();
   render()
 }
+function clearAllData(){
+  if(!confirm('Clear all Kartavya data? This permanently deletes tasks, history, wallet balance, and focus records. This cannot be undone.'))return;
+  isClearingAllData=true;
+  localStorage.removeItem(STORAGE_KEY);
+  location.reload()
+}
 function toggleInstructions(){state.showInstructions=!state.showInstructions;save();render()}
 function toggleDisclaimer(){state.showDisclaimer=!state.showDisclaimer;save();render()}

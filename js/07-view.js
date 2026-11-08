@@ -257,6 +257,7 @@ function render(){
   <div class="section-head"><span class="section-dot"></span><div class="sub">Controls</div></div>
   <div class="row" style="margin-top:10px">
     <button class="btn-outline mini" id="resetScoreBtn">Reset Score</button>
+    <button class="btn-danger mini" id="clearAllDataBtn">Clear All Data</button>
     <button class="btn-outline mini" id="instructionsBtn">${state.showInstructions?'Hide Instructions':'How to Use This App'}</button>
     <button class="btn-outline mini" id="disclaimerBtn">${state.showDisclaimer?'Hide Disclaimer':'Disclaimer'}</button>
   </div>

@@ -18,6 +18,7 @@ function bindAppEvents(){
       case 'storeAddBtn':addTaskForFuture();break;
       case 'toggleStoreBtn':state.showStoreList=!state.showStoreList;save();render();break;
       case 'resetScoreBtn':resetScore();break;
+      case 'clearAllDataBtn':clearAllData();break;
       case 'instructionsBtn':toggleInstructions();break;
       case 'disclaimerBtn':toggleDisclaimer();break;
       case 'successBtn':finishTask('success');break;
