@@ -5,7 +5,7 @@ const STAR_DAILY_PENALTY=200;
 const STAR_HOUR_PENALTY=30,STAR_MINUTES_PER_HOUR_MS=30*60*1000,STAR_START_HOUR=8,STAR_END_HOUR=22;
 const COMPULSORY_START_MS=10*60*1000,COMPULSORY_AFTER_DAYS=3;
 const MACRODROID_WEBHOOK_URL='';
-let isClearingAllData=false;
+let persistenceEnabled=localStorage.getItem(STORAGE_KEY)!==null;
 
 const state={
   wallet:DEFAULT_WALLET,

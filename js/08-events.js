@@ -1,7 +1,7 @@
 function bindAppEvents(){
   const app=document.getElementById('app');
   app.addEventListener('click',event=>{
-    sessionStorage.removeItem('kartavya-clear-pending');
+    persistenceEnabled=true;
     const target=event.target.closest('button,[data-edit-store],[data-focus-label],#taskBarTap');
     if(!target||!app.contains(target))return;
     if(target.matches('[data-focus-label]')){alert(target.dataset.focusLabel);return}
@@ -27,7 +27,7 @@ function bindAppEvents(){
     }
   });
   app.addEventListener('input',event=>{
-    sessionStorage.removeItem('kartavya-clear-pending');
+    persistenceEnabled=true;
     if(event.target.id==='storeDurationInput'){
       state.storeDurationText=event.target.value;
       save();
@@ -39,6 +39,7 @@ function bindAppEvents(){
     if(normalized){state.storeDurationText=normalized.text;event.target.value=normalized.text;save()}
   });
   app.addEventListener('keydown',event=>{
+    persistenceEnabled=true;
     if(event.key==='Enter'&&event.target.id==='storeTaskInput')addTaskForFuture();
   });
 }

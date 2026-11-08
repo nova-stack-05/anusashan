@@ -1,7 +1,12 @@
 function sanitizeNumber(value,fallback){const n=Number(value);return Number.isFinite(n)&&n>=0?n:fallback}
 function escapeHtml(str){return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 function save(){
-  if(isClearingAllData||sessionStorage.getItem('kartavya-clear-pending')==='1')return;
+  if(!persistenceEnabled)return;
+  if(localStorage.getItem(STORAGE_KEY)===null){
+    persistenceEnabled=false;
+    location.reload();
+    return;
+  }
   localStorage.setItem(STORAGE_KEY,JSON.stringify(state))
 }
 function rupee(n){return '₹'+Number(n||0).toLocaleString('en-IN')}
