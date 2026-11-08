@@ -209,6 +209,7 @@ function resetScore(){
 function clearAllData(){
   if(!confirm('Clear all Kartavya data? This permanently deletes tasks, history, wallet balance, and focus records. This cannot be undone.'))return;
   isClearingAllData=true;
+  sessionStorage.setItem('kartavya-clear-pending','1');
   localStorage.removeItem(STORAGE_KEY);
   location.reload()
 }
