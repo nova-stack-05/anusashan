@@ -1,10 +1,11 @@
 {
-  "name": "kartavya",
+  "name": "anushasan",
   "version": "1.0.0",
   "private": true,
-  "description": "A static task timer and focus tracker PWA.",
+  "description": "A simple task and time tracker PWA.",
   "scripts": {
     "start": "python3 -m http.server 8000",
-    "check": "for file in js/*.js; do node --check \"$file\" || exit 1; done"
+    "check": "for file in js/*.js; do node --check \"$file\" || exit 1; done",
+    "test": "node --test"
   }
 }

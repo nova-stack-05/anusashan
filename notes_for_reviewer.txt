@@ -1,5 +1,5 @@
-Quick heads-up: task results and penalties are all in the same `history` list in localStorage. A failed task and a penalty both have `result: 'fail'`, so check `isDistractionPenalty`, `isStarHourPenalty`, and `isStarDailyPenalty` before calling a row a failed task.
+Tasks that aren’t finished stay in Stored Tasks, even after pausing. The one active task is identified by activeTaskId. Pause adds the live timer time to workedMs and clears the active ID; starting a stored task does not reset workedMs.
 
-Hourly and daily penalties usually mean waiting around for the right time. The console snippet in `how_to_judge_completion.txt` makes one of each for you, and also adds an old entry with no date or work-time fields.
+Success and failure both remove the task from the startable list and add a history record with the result, workedMs and completedAt. History is only for finished tasks now; old money/penalty-only history rows are dropped during migration.
 
-Please leave the `kartavya-main-data` key and saved fields as they are. Reset Score clears the history but keeps tracked work minutes. The MacroDroid URL is blank in this copy, so loading the app won’t ping a live trigger.
+Existing taskStore and active queued task data are migrated into the new task list so unfinished work is kept. The old queue and star-hour rules are gone from the new flow.

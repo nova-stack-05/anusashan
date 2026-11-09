@@ -1,3 +1,3 @@
-The app already saves task results and penalties, but I can’t see the individual entries anywhere. Add a History panel so I can look back at them, with the newest ones at the top. I should be able to tell a normal task result from a distraction penalty and the hourly or daily starred-task penalties.
+Anushasan is for adding tasks and seeing how much time I spend on them. I should be able to start one task, pause it and start another, then come back to the first with its time still there. When I mark a task success or failed it should go into history and be gone from the tasks I can start again.
 
-Keep it closed when the app first opens. Please use the history that’s already saved and leave the timer, queue, penalty rules, Reset Score, and saved-data format alone. Some old entries might be missing `workedMs` or `completedAt`, so make sure those still show up without breaking the panel.
+No money stuff and no time circles. There can only be one active task. Keep the task history with the result and time spent.

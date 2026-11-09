@@ -1,4 +1,4 @@
-const CACHE_NAME='kartavya-static-v12';
+const CACHE_NAME='anushasan-v1';
 const ASSETS=[
   './',
   './index.html',
@@ -8,13 +8,9 @@ const ASSETS=[
   './icon-192.png',
   './icon-512.png',
   './js/01-config-state.js',
-  './js/02-formatting.js',
-  './js/03-task-rules.js',
-  './js/04-integrations.js',
-  './js/05-storage.js',
-  './js/06-task-actions.js',
-  './js/07-view.js',
-  './js/08-events.js'
+  './js/02-task-core.js',
+  './js/03-task-state.js',
+  './js/04-app.js',
 ];
 
 self.addEventListener('install',event=>{

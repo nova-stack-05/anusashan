@@ -1,41 +1,13 @@
-run the app from the project folder:
+Run the app from the project folder with `npm start`, then open http://localhost:8000.
 
-    python3 -m http.server 8000
+Try this flow:
 
-then open http://localhost:8000.
+1. Add two tasks, for example “Read” and “Walk”.
+2. Start Read and wait a little. Pause it. It should move back under Stored Tasks and show its time.
+3. Start Walk. There should still only be one Active Task. Pause Walk, then start Read again. Read should keep the time it had before.
+4. Mark Read Success. It should disappear from Stored Tasks and Active Task, and show in History with Success and its time. There should be no button to start it again.
+5. Start Walk and mark it Failed. It should also disappear from the startable tasks and appear in History as Failed with time spent.
+6. Reload the app. The unfinished tasks, active task and history should still be there.
+7. Confirm there are no money labels or hourly focus circles, and try the same flow at a phone-sized viewport.
 
-first check that History can be empty. use a fresh browser profile, or press Reset Score and confirm it. open History and make sure it says there’s nothing there. Reset Score should still keep the work minutes like before.
-
-to check all the row types without waiting hours or a whole day, open DevTools, go to Console, paste this and hit Enter. it puts sample entries in local storage then reloads the app. the dated entries are mixed up on purpose, and one old entry is missing the date and work time.
-
-    const key = 'kartavya-main-data';
-    const saved = JSON.parse(localStorage.getItem(key) || '{}');
-    const ago = minutes => new Date(Date.now() - minutes * 60_000).toISOString();
-    const pad = value => String(value).padStart(2, '0');
-    const now = new Date();
-    const dateKey = [now.getFullYear(), pad(now.getMonth() + 1), pad(now.getDate())].join('-');
-    saved.tasks = [];
-    saved.taskStore = [];
-    saved.activeTaskId = null;
-    saved.lastStarTickAt = Date.now();
-    saved.history = [
-      { id: 'legacy', taskName: 'Older saved task', result: 'success', reward: 50 },
-      { id: 'successful-task', taskName: 'Morning study', result: 'success', completedAt: ago(90), workedMs: 1800000, reward: 50 },
-      { id: 'hourly', taskName: '★ Task shortfall', result: 'fail', completedAt: ago(30), isStarHourPenalty: true, penalty: 30, penaltyDate: dateKey + '-08' },
-      { id: 'failed-task', taskName: 'Read a chapter', result: 'fail', completedAt: ago(60), workedMs: 900000, penalty: 200 },
-      { id: 'daily', taskName: 'Daily starred task incomplete: *Stretch', result: 'fail', completedAt: ago(15), isStarDailyPenalty: true, penalty: 200, workedMs: 600000, requiredMs: 1800000 },
-      { id: 'distraction', taskName: 'Distraction', result: 'fail', completedAt: ago(45), isDistractionPenalty: true, penalty: 10 }
-    ];
-    saved.starHourPenaltyApplied = saved.starHourPenaltyApplied || {};
-    for (let hour = 8; hour < 22; hour++) saved.starHourPenaltyApplied[dateKey + '-' + pad(hour)] = true;
-    localStorage.setItem(key, JSON.stringify(saved));
-    location.reload();
-
-now check the panel:
-
-- the dated entries should show up in this order: daily starred-task penalty, hourly starred-task penalty, distraction penalty, failed task, completed task. the sample is saved in a different order so this should check the sorting.
-- make it clear which row is a completed task, failed task, distraction penalty, hourly starred-task penalty and daily starred-task penalty. penalties also have result 'fail', so dont show them as failed tasks.
-- Older saved task has no completedAt or workedMs. it should still show without breaking anything. Date unavailable and — for the missing info is fine.
-- show work time and the reward or penalty amount when that info is there.
-- reload and make sure the entries are still there.
-- check it on a phone sized screen too. History shouldnt get in the way of the timer, queue or controls.
+Run the focused task tests with `npm test` and syntax checks with `npm run check`.
