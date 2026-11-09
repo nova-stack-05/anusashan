@@ -1,5 +1,0 @@
-Tasks that aren’t finished stay in Stored Tasks, even after pausing. The one active task is identified by activeTaskId. Pause adds the live timer time to workedMs and clears the active ID; starting a stored task does not reset workedMs.
-
-Success and failure both remove the task from the startable list and add a history record with the result, workedMs and completedAt. History is only for finished tasks now; old money/penalty-only history rows are dropped during migration.
-
-Existing taskStore and active queued task data are migrated into the new task list so unfinished work is kept. The old queue and star-hour rules are gone from the new flow.

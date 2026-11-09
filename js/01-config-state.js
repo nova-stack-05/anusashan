@@ -2,7 +2,7 @@ const STORAGE_KEY='kartavya-main-data';
 const DEFAULT_DURATION=30;
 let hasPersistedData=localStorage.getItem(STORAGE_KEY)!==null;
 let persistenceEnabled=hasPersistedData;
-const state={tasks:[],history:[],activeTaskId:null,historyOpen:false};
+const state={tasks:[],history:[],activeTaskId:null,historyOpen:false,theme:'dark'};
 function save(){
   if(!persistenceEnabled)return;
   if(hasPersistedData&&localStorage.getItem(STORAGE_KEY)===null){persistenceEnabled=false;hasPersistedData=false;location.reload();return}

@@ -1,1 +1,0 @@
-Can you change this into Anushasan, just a simple task tracker? I want to add tasks and track how much time I spend. Let me pause one task and start another, but only one can be active. When I mark a task success or failed it should go to history and be removed so I can’t start it again. Please get rid of the money stuff, queue and time circles, and update the how-to docs too.
